@@ -1,0 +1,22 @@
+# Python bytecode i cache
+__pycache__/
+*.py[cod]
+
+# Virtualno okruženje
+venv/
+
+# Konfiguracije sa tajnim ključevima
+api_keys.yaml
+config.yaml
+
+# Podaci i outputi
+data/csv/
+data/md/
+data/kg/
+index_openai/
+knowledge_graph/
+ontology_mapping/
+
+# Backup i test fajlovi
+ograg2_backup.zip
+test_azure_open_ai_3.5.py
