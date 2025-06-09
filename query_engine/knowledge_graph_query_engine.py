@@ -171,7 +171,7 @@ class KnowledgeTriplesGraphQueryEngine:
         # ima bar jedan fajl (npr. index_store.json)
         return True
     
-    def _get_relevant_triples(self, query_str: str, top_k: int = 50) -> List[str]:
+    def _get_relevant_triples(self, query_str: str, top_k: int = 3) -> List[str]:
 
         idx_dir = "index_openai/vector_soybean"  # ili uzmi iz configa
 
@@ -184,9 +184,9 @@ class KnowledgeTriplesGraphQueryEngine:
 
         """Vrati top_k najrelevantnijih triple-ova na osnovu embedding pretrage, rastavljene i normalizovane."""
         relevant_nodes = self._vector_retriever.retrieve(query_str)
-        print("Broj relevantnih nodova:", len(relevant_nodes))
-        for node in relevant_nodes:
-            print(node.get_content())
+      #  print("Broj relevantnih nodova:", len(relevant_nodes))
+      #  for node in relevant_nodes:
+      #      print(node.get_content())
 
         triples = []
         for node in relevant_nodes:
@@ -300,68 +300,32 @@ class KnowledgeTriplesGraphQueryEngine:
         retrieved_nodes = [triples_node] + retrieved_nodes    
         return retrieved_nodes
     
-    def _triplet_retriever(self,
-                        query_str: str
-                        ) -> str:
-        """ Extract relevant triples from each document"""
-        
-        MAX_DOCS = 50       # maksimalan broj dokumenata/triple chunkova
-        MAX_CHARS = 4000     # maksimalna dužina teksta po triple-u
+    def _triplet_retriever(self, query_str: str) -> str:
+        """Vrati najrelevantnije triple-ove za upit, šalje samo jedan prompt LLM-u."""
 
-        retrieved_triples = []
-        for idx, doc in enumerate(self._doc_triples[:MAX_DOCS]):
-            if self._verbose:
-                print("Extracting relevant KG Triples")
-                print(f"[Document {idx}]")
-            try:
-                context = doc.text
-                if len(context) > MAX_CHARS:
-                    context = context[:MAX_CHARS]
-                fmt_prompt = self._kg_retrieve_prompt.format(
-                    context_str=context, query_str=query_str
-                )
-                cur_response = self.llm.invoke(fmt_prompt, max_tokens=MAX_TOKENS).content
-                retrieved_triples.append(cur_response)
-            except Exception as e:
-                print(f"Preskačem dokument {idx} zbog greške: {e}")
-                continue
+        # 1. Pronađi najrelevantnije triple-ove lokalno (npr. top 5)
+        relevant_triples = self._get_relevant_triples(query_str, top_k=5)  # promeni broj po želji
 
-        # --- OVAJ DEO DODAJ ---
-        # Filtriraj prazne triple-ove (prazne stringove, prazne liste, whitespace)
-        retrieved_triples = [t for t in retrieved_triples if t and t.strip() and t.strip() != "[]"]
-
-        # 1. Prvo koristiš staru logiku i vidiš šta dobijas:
-        print("=== SVI TRIPLE-OVI ===")
-        for t in retrieved_triples:
-            print(t)
-
-
-        print("=== TOP 10 RELEVANTNIH TRIPLE-OVA ===")
-        print(f"Pozivam self._vector_retriever.retrieve sa query_str: '{query_str}'")
-
-        # 2. Sada koristiš _get_relevant_triples da vidiš šta bi ostalo:
-        relevant_triples = self._get_relevant_triples(query_str, top_k=10)
-
-        print(f"Broj triple-ova: {len(relevant_triples)}")
-        for t in relevant_triples:
-            print(t)
-
-        self._retrieved_triples = relevant_triples
-
-        # Ako nema smislenih triple-ova, NE šalji upit LLM-u
         if not relevant_triples:
             return "Nema relevantnih triple-ova za ovaj upit."
 
-        return ',\n'.join(relevant_triples)
-    
-        # self._retrieved_triples = retrieved_triples
-        
-        # # --- DODAJ OVO ---
-        # if not retrieved_triples:
-        #     return "Nema relevantnih triple-ova za ovaj upit."
+        # 2. Sastavi prompt samo sa njima
+        context = "\n".join(relevant_triples)
+        fmt_prompt = self._kg_retrieve_prompt.format(
+            context_str=context, query_str=query_str
+        )
 
-        # return ',\n'.join(retrieved_triples) 
+        # 3. Pozovi LLM SAMO jednom
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        print(fmt_prompt)
+        print(f"Broj karaktera u promptu: {len(fmt_prompt)}")
+        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+        cur_response = self.llm.invoke(fmt_prompt, max_tokens=MAX_TOKENS).content
 
+        # Sačuvaj za kasnije (opciono)
+        self._retrieved_triples = relevant_triples
+
+        return cur_response
         
 
     def _synthesize(self, 
@@ -409,10 +373,6 @@ class KnowledgeTriplesGraphQueryEngine:
         return str(cur_response)
 
     def query(self, query_str: str, return_context: bool=False, **kwargs):
-        kg_triples = self._triplet_retriever(query_str=query_str)
-        if kg_triples == "Nema relevantnih triple-ova za ovaj upit.":
-            return kg_triples
-        
         retrieved_nodes: List[NodeWithScore] = self._retrieve_nodes(query_str)
 
         response_txt = self._synthesize(
