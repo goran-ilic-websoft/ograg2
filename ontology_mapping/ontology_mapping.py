@@ -19,7 +19,7 @@ from utils import (
 
 from langchain_core.language_models import BaseLanguageModel
 
-MAX_TOKENS = 10000 #16384
+MAX_TOKENS = 2048 #16384
 MAX_NODES = 10
 
 LOGGER = logging.getLogger(__name__)

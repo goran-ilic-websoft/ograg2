@@ -206,8 +206,11 @@ class KnowledgeGraphOntologyIndex():
             
 
     def _load_context_definition(self, json_file_path: str):
+        print(f"Učitavam ontologiju iz: {json_file_path}")
         with open(json_file_path) as f:
-            return f.read()
+            content = f.read()
+            print("Prvih 500 karaktera ontologije:\n", content[:500])
+            return content
             
     def _from_pdf(self, pdf_file_path: str) -> List[Document]:
         """For PDF files only with text. No tables or figures"""
